@@ -1,0 +1,640 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labirinto</title>
+    <!-- Tailwind CSS para estilização moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons para ícones visuais -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+
+        .font-pixel {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Efeito de brilho nos elementos do jogo */
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+        }
+        
+        .glow-amber {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 bg-slate-950 text-slate-100">
+
+    <!-- Cabeçalho do Jogo -->
+    <header class="w-full max-w-lg flex justify-between items-center my-2 px-2">
+        <div class="flex items-center space-x-2">
+            <i data-lucide="gem" class="w-8 h-8 text-cyan-400 animate-pulse"></i>
+            <h1 class="text-lg sm:text-xl font-bold font-pixel tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-indigo-400">
+                labirinto 
+            </h1>
+        </div>
+        <button id="btn-sound" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 transition-colors border border-slate-700">
+            <i data-lucide="volume-2" id="sound-icon" class="w-5 h-5"></i>
+        </button>
+    </header>
+
+    <!-- Painel de Informações (Pontos, Vida, Fases) -->
+    <div class="w-full max-w-lg grid grid-cols-3 gap-2 mb-2 font-pixel text-xs sm:text-sm">
+        <div class="bg-slate-900 border border-slate-800 p-2 sm:p-3 rounded-2xl flex flex-col items-center justify-center">
+            <span class="text-slate-400 text-[10px] sm:text-xs">PONTOS</span>
+            <span id="score-val" class="text-cyan-400 text-sm sm:text-base font-bold mt-1">0</span>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-2 sm:p-3 rounded-2xl flex flex-col items-center justify-center">
+            <span class="text-slate-400 text-[10px] sm:text-xs">FASE</span>
+            <span id="level-val" class="text-amber-400 text-sm sm:text-base font-bold mt-1">1</span>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-2 sm:p-3 rounded-2xl flex flex-col items-center justify-center">
+            <span class="text-slate-400 text-[10px] sm:text-xs">RECORDE</span>
+            <span id="highscore-val" class="text-emerald-400 text-sm sm:text-base font-bold mt-1">0</span>
+        </div>
+    </div>
+
+    <!-- Área de Jogo Principal (Canvas + Telas Sobrepostas) -->
+    <div class="relative w-full max-w-lg aspect-square flex justify-center items-center my-auto">
+        <!-- Canvas do Jogo -->
+        <canvas id="gameCanvas" class="w-full h-full bg-slate-900 border-2 border-slate-800 rounded-2xl shadow-2xl glow-cyan"></canvas>
+
+        <!-- Overlay: Menu Inicial -->
+        <div id="start-overlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-6 text-center space-y-5">
+            <div class="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-2">
+                <i data-lucide="sparkles" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-pixel text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">
+                LABIRINTO 
+            </h2>
+            <p class="text-slate-300 text-xs sm:text-sm max-w-xs leading-relaxed">
+                 evite os inimigos do labirinto e encontre a saída!
+            </p>
+            <button id="btn-start" class="w-full max-w-xs py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-xl font-pixel text-sm transition-all transform active:scale-95 shadow-lg glow-cyan">
+                INICIAR JOGO
+            </button>
+        </div>
+
+        <!-- Overlay: Fim de Jogo (Game Over) -->
+        <div id="gameover-overlay" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-6 text-center space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-2">
+                <i data-lucide="skull" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-2xl font-pixel text-rose-500">FIM DE JOGO</h2>
+            <p class="text-slate-400 text-xs">Você foi capturado por um inimigo!</p>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl w-full max-w-xs my-2">
+                <div class="text-xs text-slate-400">Pontuação Final</div>
+                <div id="final-score" class="text-2xl font-pixel text-cyan-400 mt-1">0</div>
+            </div>
+            <button id="btn-restart" class="w-full max-w-xs py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold rounded-xl font-pixel text-sm transition-all transform active:scale-95 shadow-lg">
+                JOGAR NOVAMENTE
+            </button>
+        </div>
+
+        <!-- Overlay: Vitória / Mudança de Fase -->
+        <div id="victory-overlay" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-6 text-center space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-2">
+                <i data-lucide="trophy" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-2xl font-pixel text-amber-400">FASE CONCLUÍDA!</h2>
+            <p class="text-slate-300 text-xs sm:text-sm">Você coletou tudo!</p>
+            <button id="btn-next" class="w-full max-w-xs py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold rounded-xl font-pixel text-sm transition-all transform active:scale-95 shadow-lg glow-amber">
+                PRÓXIMA FASE
+            </button>
+        </div>
+    </div>
+
+    <!-- Controles -->
+    <div class="w-full max-w-lg mt-3 mb-1 flex justify-between items-center px-4">
+        <div class="text-slate-400 text-[11px] flex items-center gap-1">
+            <i data-lucide="keyboard" class="w-4 h-4"></i>
+            <span>Use Teclas / D-Pad</span>
+        </div>
+        <!-- D-Pad Virtual -->
+        <div class="grid grid-cols-3 gap-1.5 w-36 h-36">
+            <div></div>
+            <button id="btn-up" class="bg-slate-800 active:bg-cyan-600 border border-slate-700 text-cyan-400 rounded-xl flex items-center justify-center active:scale-95 transition-transform">
+                <i data-lucide="chevron-up" class="w-6 h-6"></i>
+            </button>
+            <div></div>
+            <button id="btn-left" class="bg-slate-800 active:bg-cyan-600 border border-slate-700 text-cyan-400 rounded-xl flex items-center justify-center active:scale-95 transition-transform">
+                <i data-lucide="chevron-left" class="w-6 h-6"></i>
+            </button>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-slate-600">
+                <i data-lucide="navigation" class="w-4 h-4"></i>
+            </div>
+            <button id="btn-right" class="bg-slate-800 active:bg-cyan-600 border border-slate-700 text-cyan-400 rounded-xl flex items-center justify-center active:scale-95 transition-transform">
+                <i data-lucide="chevron-right" class="w-6 h-6"></i>
+            </button>
+            <div></div>
+            <button id="btn-down" class="bg-slate-800 active:bg-cyan-600 border border-slate-700 text-cyan-400 rounded-xl flex items-center justify-center active:scale-95 transition-transform">
+                <i data-lucide="chevron-down" class="w-6 h-6"></i>
+            </button>
+            <div></div>
+        </div>
+    </div>
+
+    <!-- Lógica do Jogo e Motor de Áudio -->
+    <script>
+        // Inicializa  Icones
+        lucide.createIcons();
+
+        // ----------------------------------------------------
+        // MÓDULO DE ÁUDIO 
+        // ----------------------------------------------------
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playGem() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, this.ctx.currentTime); // D5
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.1); // A5
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playPowerup() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playGameOver() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.5);
+            }
+
+            playVictory() {
+                if (this.muted || !this.ctx) return;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.08);
+                    osc.stop(this.ctx.currentTime + idx * 0.08 + 0.15);
+                });
+            }
+        }
+
+        const sfx = new SoundEffects();
+
+        // ----------------------------------------------------
+        // CONFIGURAÇÕES DO JOGO
+        // ----------------------------------------------------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GRID_SIZE = 13; // Labirinto 13x13
+        let cellSize = 0;
+
+        let score = 0;
+        let level = 1;
+        let highScore = localStorage.getItem('gem_maze_highscore') || 0;
+        let gameActive = false;
+        let animationFrameId = null;
+
+        // Atualizar Highscore na tela
+        document.getElementById('highscore-val').innerText = highScore;
+
+        // Definir estrutura base do mapa (1 = Parede, 0 = Caminho)
+        const baseMap = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,1,0,0,0,1,0,0,0,1,0,1],
+            [1,0,1,1,1,0,1,0,1,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,0,1,1,0,1,1,0,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,0,1,0,1,1,1,0,1],
+            [1,0,1,0,0,0,1,0,0,0,1,0,1],
+            [1,0,1,0,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        let currentMap = [];
+        let gems = [];
+        
+        // Objeto Jogador
+        const player = {
+            x: 1,
+            y: 1,
+            dirX: 0,
+            dirY: 0,
+            nextDirX: 0,
+            nextDirY: 0,
+            animFrame: 0
+        };
+
+        // (Inimigos)
+        let enemies = [];
+
+        // Redimensiona o canvas para ser responsivo
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = size;
+            canvas.height = size;
+            cellSize = size / GRID_SIZE;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ----------------------------------------------------
+        // LÓGICA DO JOGO
+        // ----------------------------------------------------
+        function initLevel() {
+            currentMap = JSON.parse(JSON.stringify(baseMap));
+            gems = [];
+
+            // Criar
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (currentMap[r][c] === 0) {
+                        // Evita no ponto inicial do jogador (1,1)
+                        if (!(r === 1 && c === 1)) {
+                            gems.push({ x: c, y: r, active: true });
+                        }
+                    }
+                }
+            }
+
+            // Posicionar Jogador
+            player.x = 1;
+            player.y = 1;
+            player.dirX = 0;
+            player.dirY = 0;
+            player.nextDirX = 0;
+            player.nextDirY = 0;
+
+            // Criar inimigos baseados na Fase
+            enemies = [];
+            const enemyCount = Math.min(1 + Math.floor(level / 2), 4);
+            const possibleSpawns = [
+                {x: 11, y: 11},
+                {x: 1, y: 11},
+                {x: 11, y: 1},
+                {x: 6, y: 5}
+            ];
+
+            for (let i = 0; i < enemyCount; i++) {
+                const spawn = possibleSpawns[i % possibleSpawns.length];
+                enemies.push({
+                    x: spawn.x,
+                    y: spawn.y,
+                    dirX: 0,
+                    dirY: 0,
+                    speedTimer: 0,
+                    speedLimit: Math.max(12 - level, 6) // Fica mais rápido com o nível
+                });
+            }
+
+            document.getElementById('level-val').innerText = level;
+        }
+
+        function handleInput(dirX, dirY) {
+            sfx.init();
+            player.nextDirX = dirX;
+            player.nextDirY = dirY;
+        }
+
+        // Teclado
+        window.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp': case 'w': case 'W': handleInput(0, -1); break;
+                case 'ArrowDown': case 's': case 'S': handleInput(0, 1); break;
+                case 'ArrowLeft': case 'a': case 'A': handleInput(-1, 0); break;
+                case 'ArrowRight': case 'd': case 'D': handleInput(1, 0); break;
+            }
+        });
+
+        // Eventos D-Pad Virtual (Toque/Clique)
+        document.getElementById('btn-up').addEventListener('click', () => handleInput(0, -1));
+        document.getElementById('btn-down').addEventListener('click', () => handleInput(0, 1));
+        document.getElementById('btn-left').addEventListener('click', () => handleInput(-1, 0));
+        document.getElementById('btn-right').addEventListener('click', () => handleInput(1, 0));
+
+        let frameCounter = 0;
+
+        function update() {
+            if (!gameActive) return;
+
+            frameCounter++;
+
+            // Mover jogador a cada  quadros para movimentar 
+            if (frameCounter % 8 === 0) {
+                // Tenta mudar para a próxima direção 
+                if (player.nextDirX !== 0 || player.nextDirY !== 0) {
+                    const targetX = player.x + player.nextDirX;
+                    const targetY = player.y + player.nextDirY;
+                    if (currentMap[targetY] && currentMap[targetY][targetX] === 0) {
+                        player.dirX = player.nextDirX;
+                        player.dirY = player.nextDirY;
+                    }
+                }
+
+                // Move na direção atual se não houver parede
+                const nextX = player.x + player.dirX;
+                const nextY = player.y + player.dirY;
+                if (currentMap[nextY] && currentMap[nextY][nextX] === 0) {
+                    player.x = nextX;
+                    player.y = nextY;
+                }
+
+                // Coletar 
+                gems.forEach(gem => {
+                    if (gem.active && gem.x === player.x && gem.y === player.y) {
+                        gem.active = false;
+                        score += 10;
+                        document.getElementById('score-val').innerText = score;
+                        sfx.playGem();
+
+                        if (score > highScore) {
+                            highScore = score;
+                            localStorage.setItem('gem_maze_highscore', highScore);
+                            document.getElementById('highscore-val').innerText = highScore;
+                        }
+                    }
+                });
+
+                // Verificar vitória 
+                if (gems.every(g => !g.active)) {
+                    gameActive = false;
+                    sfx.playVictory();
+                    document.getElementById('victory-overlay').classList.remove('hidden');
+                    return;
+                }
+            }
+
+            // Atualizar (Inimigos)
+            enemies.forEach(enemy => {
+                enemy.speedTimer++;
+                if (enemy.speedTimer >= enemy.speedLimit) {
+                    enemy.speedTimer = 0;
+
+                    // Escolher Direção Valida
+                    const validMoves = [];
+                    const dirs = [{x: 0, y: -1}, {x: 0, y: 1}, {x: -1, y: 0}, {x: 1, y: 0}];
+
+                    dirs.forEach(d => {
+                        const checkX = enemy.x + d.x;
+                        const checkY = enemy.y + d.y;
+                        if (currentMap[checkY] && currentMap[checkY][checkX] === 0) {
+                            validMoves.push(d);
+                        }
+                    });
+
+                    if (validMoves.length > 0) {
+                        // Prefere continuar na mesma direção se possível
+                        const sameDir = validMoves.find(m => m.x === enemy.dirX && m.y === enemy.dirY);
+                        let chosen = null;
+
+                        if (sameDir && Math.random() > 0.3) {
+                            chosen = sameDir;
+                        } else {
+                            chosen = validMoves[Math.floor(Math.random() * validMoves.length)];
+                        }
+
+                        enemy.dirX = chosen.x;
+                        enemy.dirY = chosen.y;
+                        enemy.x += enemy.dirX;
+                        enemy.y += enemy.dirY;
+                    }
+                }
+
+                // batalha do Jogador com Inimigo
+                if (enemy.x === player.x && enemy.y === player.y) {
+                    gameOver();
+                }
+            });
+        }
+
+        // ----------------------------------------------------
+        // RENDERIZAÇÃO
+        // ----------------------------------------------------
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar Parede e Caminho
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const x = c * cellSize;
+                    const y = r * cellSize;
+
+                    if (currentMap[r][c] === 1) {
+                        // Parede com borda
+                        ctx.fillStyle = '#1e293b';
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                        ctx.strokeStyle = '#334155';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                    } else {
+                        // Caminho
+                        ctx.fillStyle = '#0f172a';
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                    }
+                }
+            }
+
+            // Desenhar 
+            const time = Date.now() * 0.005;
+            gems.forEach(gem => {
+                if (gem.active) {
+                    const cx = gem.x * cellSize + cellSize / 2;
+                    const cy = gem.y * cellSize + cellSize / 2;
+                    const radius = (cellSize / 5) + Math.sin(time + gem.x) * 1.5;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#22d3ee';
+                    ctx.shadowColor = '#06b6d4';
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // Desenhar Jogador
+            const px = player.x * cellSize + cellSize / 2;
+            const py = player.y * cellSize + cellSize / 2;
+            const pSize = cellSize * 0.35;
+
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.fillStyle = '#f59e0b';
+            ctx.shadowColor = '#d97706';
+            ctx.shadowBlur = 10;
+            
+            // Desenhar triângulo para o jogador
+            ctx.beginPath();
+            ctx.arc(0, 0, pSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Olhos
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(-pSize/3, -pSize/4, pSize/4, 0, Math.PI * 2);
+            ctx.arc(pSize/3, -pSize/4, pSize/4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Desenhar (Inimigos)
+            enemies.forEach(enemy => {
+                const ex = enemy.x * cellSize + cellSize / 2;
+                const ey = enemy.y * cellSize + cellSize / 2;
+                const eSize = cellSize * 0.38;
+
+                ctx.save();
+                ctx.translate(ex, ey);
+                ctx.fillStyle = '#f43f5e';
+                ctx.shadowColor = '#e11d48';
+                ctx.shadowBlur = 12;
+
+                // Corpo do guardião
+                ctx.beginPath();
+                ctx.arc(0, 0, eSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Olhos do inimigo
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-eSize/3, -eSize/4, eSize/3, 0, Math.PI * 2);
+                ctx.arc(eSize/3, -eSize/4, eSize/3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(-eSize/3, -eSize/4, eSize/6, 0, Math.PI * 2);
+                ctx.arc(eSize/3, -eSize/4, eSize/6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+        }
+
+        // Loop Principal
+        function gameLoop() {
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // ----------------------------------------------------
+        // CONTROLE DE INTERFACE E EVENTOS
+        // ----------------------------------------------------
+        function startGame() {
+            sfx.init();
+            score = 0;
+            level = 1;
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('start-overlay').classList.add('hidden');
+            document.getElementById('gameover-overlay').classList.add('hidden');
+            document.getElementById('victory-overlay').classList.add('hidden');
+            
+            initLevel();
+            gameActive = true;
+
+            if (!animationFrameId) {
+                gameLoop();
+            }
+        }
+
+        function gameOver() {
+            gameActive = false;
+            sfx.playGameOver();
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('gameover-overlay').classList.remove('hidden');
+        }
+
+        function nextLevel() {
+            level++;
+            document.getElementById('victory-overlay').classList.add('hidden');
+            initLevel();
+            gameActive = true;
+        }
+
+        // Eventos dos Botões
+        document.getElementById('btn-start').addEventListener('click', startGame);
+        document.getElementById('btn-restart').addEventListener('click', startGame);
+        document.getElementById('btn-next').addEventListener('click', nextLevel);
+
+        // Mute / Unmute Som
+        const soundBtn = document.getElementById('btn-sound');
+        const soundIcon = document.getElementById('sound-icon');
+
+        soundBtn.addEventListener('click', () => {
+            sfx.muted = !sfx.muted;
+            if (sfx.muted) {
+                soundIcon.setAttribute('data-lucide', 'volume-x');
+            } else {
+                soundIcon.setAttribute('data-lucide', 'volume-2');
+            }
+            lucide.createIcons();
+        });
+
+        // Iniciar primeira renderização estática do fundo
+        initLevel();
+        draw();
+    </script>
+</body>
+</html>
